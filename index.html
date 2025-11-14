@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>键盘绘画师 - Keyboard Artist</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #0a0a0a;
+        }
+
+        /* 开场动画 */
+        .intro-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 1s ease, transform 1s ease;
+        }
+
+        .intro-overlay.hidden {
+            opacity: 0;
+            transform: scale(1.1);
+            pointer-events: none;
+        }
+
+        .intro-title {
+            font-size: 4rem;
+            margin-bottom: 2rem;
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+            animation: titleFloat 3s ease-in-out infinite;
+        }
+
+        .intro-subtitle {
+            font-size: 1.5rem;
+            color: #aaa;
+            margin-bottom: 3rem;
+            text-align: center;
+            max-width: 600px;
+            line-height: 1.6;
+        }
+
+        .intro-features {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 3rem;
+            max-width: 800px;
+        }
+
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1.5rem;
+            border-radius: 10px;
+            text-align: center;
+            width: 180px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .feature:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-text {
+            font-size: 0.9rem;
+            color: #ddd;
+        }
+
+        .start-button {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            color: white;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .start-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        @keyframes titleFloat {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        .canvas {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            background: radial-gradient(circle at center, #1a1a2e 0%, #0a0a0a 100%);
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        .hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #fff;
+            z-index: 1;
+            opacity: 0.3;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .hint.hidden {
+            opacity: 0;
+        }
+
+        .hint h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hint p {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+            color: #aaa;
+        }
+
+        .controls {
+            font-size: 0.9rem !important;
+            color: #666 !important;
+        }
+
+        kbd {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-family: monospace;
+        }
+
+        .art-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .art-element {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            animation: entrance 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            text-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+            user-select: none;
+        }
+
+        .art-element:hover {
+            transform: scale(1.1);
+            z-index: 100;
+        }
+
+        .art-element.removing {
+            animation: exit 0.3s ease-out forwards;
+        }
+
+        /* 名字框样式 */
+        .name-box {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 2.5rem;
+            border-radius: 15px;
+            padding: 20px 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            cursor: pointer;
+            animation: nameEntrance 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 50;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+
+        .name-box:hover {
+            transform: scale(1.05);
+        }
+
+        .name-box.removing {
+            animation: nameExit 0.5s ease-out forwards;
+        }
+
+        @keyframes nameEntrance {
+            0% {
+                transform: scale(0) rotate(-10deg);
+                opacity: 0;
+            }
+            70% {
+                transform: scale(1.1) rotate(5deg);
+            }
+            100% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+        }
+
+        @keyframes nameExit {
+            0% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0) rotate(10deg);
+                opacity: 0;
+            }
+        }
+
+        /* 形状样式 */
+        .shape-circle {
+            border-radius: 50%;
+        }
+
+        .shape-square {
+            border-radius: 0;
+        }
+
+        .shape-rounded {
+            border-radius: 15%;
+        }
+
+        .shape-triangle {
+            width: 0 !important;
+            height: 0 !important;
+            background: transparent !important;
+            border-left: 30px solid transparent;
+            border-right: 30px solid transparent;
+            border-bottom: 52px solid;
+        }
+
+        .shape-star {
+            position: relative;
+            display: inline-block;
+            width: 0;
+            height: 0;
+            border-left: 25px solid transparent;
+            border-right: 25px solid transparent;
+            border-bottom: 18px solid;
+            transform: rotate(35deg);
+            background: transparent !important;
+        }
+
+        .shape-star:before {
+            content: '';
+            position: absolute;
+            left: -25px;
+            top: -12px;
+            width: 0;
+            height: 0;
+            border-left: 25px solid transparent;
+            border-right: 25px solid transparent;
+            border-bottom: 18px solid;
+            transform: rotate(-70deg);
+        }
+
+        .shape-star:after {
+            content: '';
+            position: absolute;
+            left: -25px;
+            top: 3px;
+            width: 0;
+            height: 0;
+            border-left: 25px solid transparent;
+            border-right: 25px solid transparent;
+            border-bottom: 18px solid;
+            transform: rotate(70deg);
+        }
+
+        .shape-heart {
+            position: relative;
+            width: 50px;
+            height: 45px;
+            background: transparent !important;
+        }
+
+        .shape-heart:before,
+        .shape-heart:after {
+            content: '';
+            position: absolute;
+            left: 25px;
+            top: 0;
+            width: 26px;
+            height: 40px;
+            background: inherit;
+            border-radius: 25px 25px 0 0;
+            transform: rotate(-45deg);
+            transform-origin: 0 100%;
+        }
+
+        .shape-heart:after {
+            left: 0;
+            transform: rotate(45deg);
+            transform-origin: 100% 100%;
+        }
+
+        /* 动画效果 */
+        @keyframes entrance {
+            0% {
+                transform: scale(0) rotate(0deg);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.2) rotate(180deg);
+            }
+            100% {
+                transform: scale(1) rotate(360deg);
+                opacity: 1;
+            }
+        }
+
+        @keyframes exit {
+            0% {
+                transform: scale(1) rotate(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0) rotate(180deg);
+                opacity: 0;
+            }
+        }
+
+        /* 高级动画效果 */
+        .animation-breathe {
+            animation: breathe 2s ease-in-out infinite;
+        }
+
+        .animation-rotate {
+            animation: rotate 4s linear infinite;
+        }
+
+        .animation-float {
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .animation-pulse {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes breathe {
+            0%, 100% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.05);
+            }
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        /* 统计信息 */
+        .stats {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .intro-title {
+                font-size: 2.5rem;
+            }
+            
+            .intro-subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .feature {
+                width: 140px;
+                padding: 1rem;
+            }
+            
+            .hint h1 {
+                font-size: 2rem;
+            }
+            
+            .hint p {
+                font-size: 1rem;
+            }
+            
+            .controls {
+                font-size: 0.8rem !important;
+            }
+            
+            .name-box {
+                font-size: 1.8rem;
+                padding: 15px 30px;
+            }
+            
+            .hint p.mobile-hint {
+                display: block;
+            }
+            
+            .hint p.desktop-hint {
+                display: none;
+            }
+        }
+
+        @media (min-width: 769px) {
+            .hint p.mobile-hint {
+                display: none;
+            }
+            
+            .hint p.desktop-hint {
+                display: block;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 开场动画 -->
+    <div id="intro-overlay" class="intro-overlay">
+        <h1 class="intro-title">🎨 键盘绘画师</h1>
+        <p class="intro-subtitle">通过键盘创造独特的数字艺术体验</p>
+        
+        <div class="intro-features">
+            <div class="feature">
+                <div class="feature-icon">⌨️</div>
+                <div class="feature-text">敲击键盘创建艺术元素</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✨</div>
+                <div class="feature-text">多种形状和动画效果</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🎯</div>
+                <div class="feature-text">点击元素可删除</div>
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔧</div>
+                <div class="feature-text">按C键显示名字</div>
+            </div>
+        </div>
+        
+        <button id="start-button" class="start-button">开始创作</button>
+    </div>
+
+    <!-- 主画布 -->
+    <div id="canvas" class="canvas">
+        <div class="hint">
+            <h1>🎨 键盘绘画师</h1>
+            <p>开始敲击键盘，创作你的艺术</p>
+            <p class="controls desktop-hint">
+                按 <kbd>ESC</kbd> 清空画布 | 
+                按 <kbd>C</kbd> 显示名字 |
+                点击元素可删除
+            </p>
+            <p class="controls mobile-hint">
+                点击屏幕创建随机元素 | 
+                点击元素可删除 | 
+                双指点击清空画布
+            </p>
+        </div>
+        <div id="art-container" class="art-container"></div>
+    </div>
+    
+    <!-- 统计信息 -->
+    <div class="stats">
+        <span>元素数量: <span id="element-count">0</span></span>
+    </div>
+
+    <script>
+        class KeyboardArtist {
+            constructor() {
+                this.canvas = document.getElementById('art-container');
+                this.hint = document.querySelector('.hint');
+                this.elementCount = document.getElementById('element-count');
+                this.introOverlay = document.getElementById('intro-overlay');
+                this.startButton = document.getElementById('start-button');
+                
+                this.elements = [];
+                this.nameBoxes = []; // 存储所有名字框
+                this.isFirstKey = true;
+                this.styleCounter = 0;
+                this.userName = "刘富仁";
+                
+                this.shapes = [
+                    'shape-circle',
+                    'shape-square',
+                    'shape-rounded',
+                    'shape-triangle',
+                    'shape-star',
+                    'shape-heart'
+                ];
+                
+                this.animations = [
+                    'animation-breathe',
+                    'animation-rotate',
+                    'animation-float',
+                    'animation-pulse',
+                    ''
+                ];
+                
+                // 名字框颜色数组
+                this.nameColors = [
+                    'linear-gradient(45deg, #667eea 0%, #764ba2 100%)',
+                    'linear-gradient(45deg, #f093fb 0%, #f5576c 100%)',
+                    'linear-gradient(45deg, #4facfe 0%, #00f2fe 100%)',
+                    'linear-gradient(45deg, #43e97b 0%, #38f9d7 100%)',
+                    'linear-gradient(45deg, #fa709a 0%, #fee140 100%)',
+                    'linear-gradient(45deg, #a8edea 0%, #fed6e3 100%)',
+                    'linear-gradient(45deg, #d299c2 0%, #fef9d7 100%)',
+                    'linear-gradient(45deg, #89f7fe 0%, #66a6ff 100%)'
+                ];
+                
+                this.init();
+            }
+            
+            init() {
+                // 设置开始按钮事件
+                this.startButton.addEventListener('click', () => {
+                    this.introOverlay.classList.add('hidden');
+                    setTimeout(() => {
+                        this.introOverlay.style.display = 'none';
+                    }, 1000);
+                });
+                
+                // 设置键盘事件
+                document.addEventListener('keydown', (e) => this.handleKeyPress(e));
+                
+                // 添加触摸支持
+                document.addEventListener('touchstart', (e) => this.handleTouch(e));
+                document.addEventListener('touchend', (e) => this.handleTouchEnd(e));
+                
+                this.updateElementCount();
+            }
+            
+            handleKeyPress(event) {
+                // 防止重复触发
+                if (event.repeat) return;
+                
+                const key = event.key;
+                
+                // 清空画布
+                if (key === 'Escape') {
+                    this.clearCanvas();
+                    return;
+                }
+                
+                // 按C键显示名字
+                if (key.toLowerCase() === 'c') {
+                    this.showName();
+                    return;
+                }
+                
+                // 忽略功能键
+                if (key.length > 1 && !['Enter', ' '].includes(key)) {
+                    return;
+                }
+                
+                // 隐藏提示文字
+                if (this.isFirstKey) {
+                    this.hint.classList.add('hidden');
+                    this.isFirstKey = false;
+                }
+                
+                // 创建艺术元素
+                this.createArtElement(key);
+            }
+            
+            handleTouch(event) {
+                // 隐藏提示文字
+                if (this.isFirstKey) {
+                    this.hint.classList.add('hidden');
+                    this.isFirstKey = false;
+                }
+                
+                // 双指触摸清空画布
+                if (event.touches.length >= 2) {
+                    this.clearCanvas();
+                    return;
+                }
+                
+                // 单指触摸创建元素
+                for (let i = 0; i < event.touches.length; i++) {
+                    const touch = event.touches[i];
+                    const randomKey = this.getRandomKey();
+                    this.createArtElement(randomKey, touch.clientX, touch.clientY);
+                }
+            }
+            
+            handleTouchEnd(event) {
+                // 防止默认行为
+                event.preventDefault();
+            }
+            
+            getRandomKey() {
+                const keys = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+                return keys.charAt(Math.floor(Math.random() * keys.length));
+            }
+            
+            createArtElement(key, x = null, y = null) {
+                const element = document.createElement('div');
+                element.className = 'art-element';
+                
+                // 随机位置
+                const posX = x !== null ? x - 50 : Math.random() * (window.innerWidth - 100);
+                const posY = y !== null ? y - 50 : Math.random() * (window.innerHeight - 100);
+                element.style.left = `${posX}px`;
+                element.style.top = `${posY}px`;
+                
+                // 随机大小
+                const size = Math.random() * 80 + 40; // 40px - 120px
+                element.style.width = `${size}px`;
+                element.style.height = `${size}px`;
+                
+                // 随机形状
+                const shape = this.shapes[Math.floor(Math.random() * this.shapes.length)];
+                element.classList.add(shape);
+                
+                // 随机颜色
+                const color = this.getRandomColor();
+                if (shape === 'shape-triangle') {
+                    element.style.borderBottomColor = color;
+                } else if (shape === 'shape-star') {
+                    element.style.borderBottomColor = color;
+                    this.addDynamicStyle(shape, color);
+                } else if (shape === 'shape-heart') {
+                    this.addDynamicStyle(shape, color);
+                } else {
+                    element.style.backgroundColor = color;
+                }
+                
+                // 显示按键字符
+                const keyText = key === ' ' ? 'Space' : key;
+                element.textContent = keyText;
+                
+                // 添加随机动画
+                const animation = this.animations[Math.floor(Math.random() * this.animations.length)];
+                if (animation) {
+                    element.classList.add(animation);
+                }
+                
+                // 添加点击事件
+                element.addEventListener('click', () => this.removeElement(element));
+                
+                // 添加到画布
+                this.canvas.appendChild(element);
+                this.elements.push(element);
+                this.updateElementCount();
+                
+                // 自动清理过多元素（性能优化）
+                if (this.elements.length > 100) {
+                    const oldestElement = this.elements.shift();
+                    this.removeElement(oldestElement);
+                }
+            }
+            
+            addDynamicStyle(shape, color) {
+                const styleId = `dynamic-style-${this.styleCounter++}`;
+                let styleContent = '';
+                
+                if (shape === 'shape-star') {
+                    styleContent = `
+                        .shape-star[data-id="${this.styleCounter}"]:before { 
+                            border-bottom-color: ${color}; 
+                        }
+                        .shape-star[data-id="${this.styleCounter}"]:after { 
+                            border-bottom-color: ${color}; 
+                        }
+                    `;
+                } else if (shape === 'shape-heart') {
+                    styleContent = `
+                        .shape-heart[data-id="${this.styleCounter}"]:before, 
+                        .shape-heart[data-id="${this.styleCounter}"]:after { 
+                            background: ${color}; 
+                        }
+                    `;
+                }
+                
+                if (styleContent) {
+                    const style = document.createElement('style');
+                    style.id = styleId;
+                    style.textContent = styleContent;
+                    document.head.appendChild(style);
+                    
+                    // 为元素添加data-id属性
+                    const elements = document.querySelectorAll(`.${shape}:not([data-id])`);
+                    if (elements.length > 0) {
+                        elements[elements.length - 1].setAttribute('data-id', this.styleCounter);
+                    }
+                }
+            }
+            
+            getRandomColor() {
+                const colors = [
+                    '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                    '#DDA0DD', '#98D8C8', '#FFD93D', '#6BCB77', '#FF6B9D',
+                    '#C44569', '#F8B500', '#00D2D3', '#8E44AD', '#3498DB',
+                    '#E74C3C', '#1ABC9C', '#F39C12', '#9B59B6', '#2ECC71'
+                ];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            
+            removeElement(element) {
+                if (!element || element.classList.contains('removing')) return;
+                
+                element.classList.add('removing');
+                setTimeout(() => {
+                    if (element.parentNode) {
+                        element.parentNode.removeChild(element);
+                        const index = this.elements.indexOf(element);
+                        if (index > -1) {
+                            this.elements.splice(index, 1);
+                        }
+                        this.updateElementCount();
+                    }
+                }, 300);
+            }
+            
+            clearCanvas() {
+                // 清除普通元素
+                this.elements.forEach(element => {
+                    this.removeElement(element);
+                });
+                
+                // 清除所有名字框
+                this.nameBoxes.forEach(nameBox => {
+                    this.removeNameBox(nameBox);
+                });
+                this.nameBoxes = [];
+                
+                // 显示提示文字
+                if (this.elements.length === 0) {
+                    this.hint.classList.remove('hidden');
+                    this.isFirstKey = true;
+                }
+            }
+            
+            showName() {
+                // 创建名字框
+                const nameBox = document.createElement('div');
+                nameBox.className = 'name-box';
+                nameBox.textContent = this.userName;
+                
+                // 随机位置，但确保在屏幕内
+                const maxX = window.innerWidth - 300;
+                const maxY = window.innerHeight - 100;
+                const x = Math.random() * maxX + 50;
+                const y = Math.random() * maxY + 50;
+                
+                nameBox.style.left = `${x}px`;
+                nameBox.style.top = `${y}px`;
+                
+                // 随机选择颜色
+                const randomColor = this.nameColors[Math.floor(Math.random() * this.nameColors.length)];
+                nameBox.style.background = randomColor;
+                
+                // 添加点击事件
+                nameBox.addEventListener('click', () => this.removeNameBox(nameBox));
+                
+                // 添加到画布和数组
+                this.canvas.appendChild(nameBox);
+                this.nameBoxes.push(nameBox);
+            }
+            
+            removeNameBox(nameBox) {
+                if (!nameBox) return;
+                
+                nameBox.classList.add('removing');
+                setTimeout(() => {
+                    if (nameBox.parentNode) {
+                        nameBox.parentNode.removeChild(nameBox);
+                        // 从数组中移除
+                        const index = this.nameBoxes.indexOf(nameBox);
+                        if (index > -1) {
+                            this.nameBoxes.splice(index, 1);
+                        }
+                    }
+                }, 500);
+            }
+            
+            updateElementCount() {
+                this.elementCount.textContent = this.elements.length;
+            }
+        }
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            new KeyboardArtist();
+        });
+    </script>
+</body>
+</html>
